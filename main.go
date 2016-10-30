@@ -184,7 +184,6 @@ func main() {
 	if err := termbox.Init(); err != nil {
 		log.Fatalf("termbox.Init(): %v", err)
 	}
-	defer termbox.Close()
 
 	quit := make(chan struct{})
 	lineCh := make(chan string)
@@ -200,6 +199,14 @@ func main() {
 	go func() {
 		io.Copy(p.inbuf, os.Stdin)
 		log.Print("Done with stdin")
+	}()
+
+	var gracefulExit bool
+	defer func() {
+		termbox.Close()
+		if gracefulExit {
+			io.Copy(os.Stdout, p.outbuf)
+		}
 	}()
 
 	// draw the screen
@@ -247,7 +254,10 @@ loop:
 	for {
 		e := termbox.PollEvent()
 		switch e.Key {
-		case termbox.KeyEsc, termbox.KeyCtrlC:
+		case termbox.KeyEsc:
+			gracefulExit = true
+			break loop
+		case termbox.KeyCtrlC:
 			break loop
 		case termbox.KeyEnter:
 		case termbox.KeySpace:
