@@ -189,6 +189,7 @@ func main() {
 	lineCh := make(chan string)
 	cursorCh := make(chan int)
 	redrawCh := make(chan bool)
+	errorCh := make(chan bool)
 
 	p := pipeline{
 		inbuf:   &buffer{},
@@ -242,6 +243,7 @@ func main() {
 			case redraw = <-redrawCh:
 			case <-quit:
 				log.Print("Quitting")
+				errorCh <- processError
 				return
 			}
 		}
@@ -280,4 +282,7 @@ loop:
 		log.Printf("%#v", e)
 	}
 	close(quit)
+	if !gracefulExit || <-errorCh {
+		os.Exit(1)
+	}
 }
