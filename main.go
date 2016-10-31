@@ -20,41 +20,38 @@ import (
 var log *logpkg.Logger
 
 var (
-	logFile = flag.String("log", "", "File for log writing.")
-	shell   = flag.String("shell", "bash", "Shell to use for pipeline evaluation.")
+	logFile    = flag.String("log", "", "File for log writing.")
+	shell      = flag.String("shell", "bash", "Shell to use for pipeline evaluation.")
+	buffersize = flag.Int("buffersize", 16384, "Maximum size of input buffer.")
 )
-
-// flags for:
-//  --shell=bash
-//  --max-buffer=4096
 
 type buffer struct {
 	sync.Mutex
-	dirty bool
-	bytes.Buffer
+	dirty      bool
+	buffer     bytes.Buffer
+	buffersize int
 }
 
 func (b *buffer) Write(data []byte) (int, error) {
 	b.Lock()
 	defer b.Unlock()
-	n, err := b.Write(data)
+
+	overage := b.buffersize - (b.buffer.Len() + len(data))
+	if overage > 0 {
+		b.buffer.Next(overage)
+	}
+
+	n, err := b.buffer.Write(data)
 	b.dirty = b.dirty || n != 0
 	return n, err
 }
 
-func (b *buffer) ReadFrom(r io.Reader) (int64, error) {
-	b.Lock()
-	defer b.Unlock()
-	n, err := b.Buffer.ReadFrom(r)
-	b.dirty = b.dirty || n != 0
-	return n, err
+func (b *buffer) String() string {
+	return b.buffer.String()
 }
 
-func (b *buffer) Reset(data []byte) {
-	b.Lock()
-	defer b.Unlock()
-	b.dirty = b.Len() != 0
-	b.Buffer.Reset()
+func (b *buffer) Bytes() []byte {
+	return b.buffer.Bytes()
 }
 
 func (b *buffer) Dirty() bool {
@@ -192,7 +189,7 @@ func main() {
 	errorCh := make(chan bool)
 
 	p := pipeline{
-		inbuf:   &buffer{},
+		inbuf:   &buffer{buffersize: *buffersize},
 		outbuf:  &bytes.Buffer{},
 		showbuf: &bytes.Buffer{},
 		errbuf:  &bytes.Buffer{},
@@ -204,9 +201,12 @@ func main() {
 
 	var gracefulExit bool
 	defer func() {
+		termbox.Sync()
 		termbox.Close()
-		if gracefulExit {
+		if gracefulExit && !<-errorCh {
 			io.Copy(os.Stdout, p.outbuf)
+		} else {
+			os.Exit(1)
 		}
 	}()
 
@@ -256,12 +256,11 @@ loop:
 	for {
 		e := termbox.PollEvent()
 		switch e.Key {
-		case termbox.KeyReturn:
+		case termbox.KeyEnter:
 			gracefulExit = true
 			break loop
 		case termbox.KeyEsc, termbox.KeyCtrlC:
 			break loop
-		case termbox.KeyEnter:
 		case termbox.KeySpace:
 			lineBuffer += " "
 			cursor++
@@ -282,7 +281,4 @@ loop:
 		log.Printf("%#v", e)
 	}
 	close(quit)
-	if !gracefulExit || <-errorCh {
-		os.Exit(1)
-	}
 }
