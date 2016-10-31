@@ -218,7 +218,7 @@ func main() {
 
 		for {
 			select {
-			case <-time.NewTicker(10 * time.Millisecond).C:
+			case <-time.After(10 * time.Millisecond):
 
 				if line != p.lastLine || p.inbuf.Dirty() {
 					if err := p.processPipeline(line); err != nil {
