@@ -240,6 +240,7 @@ func main() {
 				}
 			case line = <-lineCh:
 			case cursor = <-cursorCh:
+				redraw = true
 			case redraw = <-redrawCh:
 			case <-quit:
 				log.Print("Quitting")
@@ -262,15 +263,23 @@ loop:
 		case termbox.KeyEsc, termbox.KeyCtrlC:
 			break loop
 		case termbox.KeySpace:
-			lineBuffer += " "
+			lineBuffer = lineBuffer[:cursor] + string(' ') + lineBuffer[cursor:]
 			cursor++
 		case termbox.KeyBackspace, termbox.KeyBackspace2:
 			if cursor != 0 {
 				lineBuffer = lineBuffer[:cursor-1] + lineBuffer[cursor:]
 				cursor--
 			}
+		case termbox.KeyArrowLeft:
+			if cursor > 0 {
+				cursor--
+			}
+		case termbox.KeyArrowRight:
+			if cursor < len(lineBuffer) {
+				cursor++
+			}
 		case 0:
-			lineBuffer += string(e.Ch)
+			lineBuffer = lineBuffer[:cursor] + string(e.Ch) + lineBuffer[cursor:]
 			cursor++
 		}
 		if e.Width != 0 || e.Height != 0 {
