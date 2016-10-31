@@ -256,10 +256,10 @@ loop:
 	for {
 		e := termbox.PollEvent()
 		switch e.Key {
-		case termbox.KeyEsc:
+		case termbox.KeyReturn:
 			gracefulExit = true
 			break loop
-		case termbox.KeyCtrlC:
+		case termbox.KeyEsc, termbox.KeyCtrlC:
 			break loop
 		case termbox.KeyEnter:
 		case termbox.KeySpace:
