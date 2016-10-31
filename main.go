@@ -216,10 +216,11 @@ func main() {
 		var cursor int
 		var redraw, processError bool
 
+		t := time.NewTicker(10 * time.Millisecond)
+		defer t.Stop()
 		for {
 			select {
-			case <-time.After(10 * time.Millisecond):
-
+			case <-t.C:
 				if line != p.lastLine || p.inbuf.Dirty() {
 					if err := p.processPipeline(line); err != nil {
 						log.Printf("pipeline error: %v", err)
