@@ -105,6 +105,9 @@ func (p *pipeline) renderBuffer(b *bytes.Buffer, skipUpper, skipLower, fromEnd i
 		for x, c := range row {
 			termbox.SetCell(x, y+skipUpper, c, fg, bg)
 		}
+		for x := len(row); x < cols; x++ {
+			termbox.SetCell(x, y+skipUpper, ' ', fg, bg)
+		}
 	}
 	return n
 }
@@ -226,6 +229,8 @@ func (p *pipeline) render(line string, cursor, fromEnd int, processError bool) (
 	if processError {
 		p.renderBuffer(p.errbuf, rows-2, 0, 0, termbox.ColorRed, termbox.ColorBlack)
 		lineFg = termbox.ColorRed
+	} else {
+		p.renderBuffer(bytes.NewBufferString("\n\n\n"), rows-2, 0, 0, termbox.ColorRed, termbox.ColorBlack)
 	}
 	p.renderLine(line, cursor, lineFg, lineBg)
 	return termbox.Flush(), n
