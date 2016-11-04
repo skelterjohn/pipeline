@@ -93,3 +93,25 @@ func TestGetBufferLinesToShow(t *testing.T) {
 		}
 	}
 }
+
+func TestGetBufferLinesToShowScroll(t *testing.T) {
+	type c struct {
+		in   string
+		outs []string
+	}
+	for i, tc := range []c{
+		{
+			"too\nmany\nlines\nto\nshow",
+			[]string{
+				"too",
+				"many",
+				"lines",
+			},
+		},
+	} {
+		if err := compareRunePage(getBufferLinesToShow(3, 20, 2, tc.in),
+			tc.outs); err != nil {
+			t.Errorf("Case %d: %v", i, err)
+		}
+	}
+}

@@ -124,10 +124,13 @@ func (p *pipeline) renderLine(line string, cursor int, fg, bg termbox.Attribute)
 func getBufferLinesToShow(rows, cols, skipFromEnd int, data string) [][]rune {
 	// turn into []rune so that we account for width correctly. it's also what termbox wants.
 	rs := []rune(data)
-	lines := make([][]rune, rows)
+	linesInReverse := [][]rune{}
 
-	for rows > 0 && len(rs) > 0 {
-		log.Printf("row %d\n", rows)
+	linesToRender := rows + skipFromEnd
+
+	linesToRender--
+	for linesToRender >= 0 && len(rs) > 0 {
+		log.Printf("line %d\n", linesToRender)
 		log.Printf("rs=%q", string(rs))
 		// find the last '\n', or verify that there isn't one in cols runes
 		lastNewline := -1
@@ -146,17 +149,17 @@ func getBufferLinesToShow(rows, cols, skipFromEnd int, data string) [][]rune {
 			totalLine = rs[lastNewline+1:]
 		}
 		log.Printf("totalLine=%q", string(totalLine))
-		linePieces := [][]rune{}
+		linePieces := make([][]rune, 0, 1+len(totalLine)/cols)
 		if len(totalLine) == 0 {
 			linePieces = [][]rune{{}}
 		} else {
 			for len(totalLine) > cols {
-				linePieces = append(linePieces, totalLine[:cols])
+				linePieces = append([][]rune{totalLine[:cols]}, linePieces...)
 				log.Printf("%q added", string(totalLine[:cols]))
 				totalLine = totalLine[cols:]
 			}
 			if len(totalLine) > 0 {
-				linePieces = append(linePieces, totalLine)
+				linePieces = append([][]rune{totalLine}, linePieces...)
 				log.Printf("%q added last", string(totalLine))
 			}
 		}
@@ -166,12 +169,20 @@ func getBufferLinesToShow(rows, cols, skipFromEnd int, data string) [][]rune {
 			rs = rs[:0]
 		}
 
-		for i, l := range linePieces {
-			lines[rows-len(linePieces)+i] = l
+		for _, l := range linePieces {
+			linesInReverse = append(linesInReverse, l)
 		}
-		rows -= len(linePieces)
+		linesToRender -= len(linePieces)
 	}
-	return lines[rows:]
+	lines := [][]rune{}
+	for _, l := range linesInReverse {
+		log.Printf("r> %s", string(l))
+	}
+	for i := 0; i < len(linesInReverse)-skipFromEnd; i++ {
+		lines = append(lines, linesInReverse[len(linesInReverse)-i-1])
+	}
+
+	return lines
 }
 
 func (p *pipeline) render(line string, cursor int, processError bool) error {
