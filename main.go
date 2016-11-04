@@ -16,6 +16,8 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
+const TabWidth = 4
+
 var log *logpkg.Logger
 
 var (
@@ -149,6 +151,23 @@ func getBufferLinesToShow(rows, cols, skipFromEnd int, data string) [][]rune {
 			totalLine = rs[lastNewline+1:]
 		}
 		log.Printf("totalLine=%q", string(totalLine))
+
+		// expand tabs
+		expandedLine := make([]rune, 0, 2*len(totalLine))
+		for _, c := range totalLine {
+			if c == '\t' {
+				log.Printf("found a tab at %d", len(expandedLine))
+				spacesRemaining := TabWidth - len(expandedLine)%TabWidth
+				log.Printf("adding %d spaces", spacesRemaining)
+				for j := 0; j < spacesRemaining; j++ {
+					expandedLine = append(expandedLine, ' ')
+				}
+			} else {
+				expandedLine = append(expandedLine, c)
+			}
+		}
+		totalLine = expandedLine
+
 		linePieces := make([][]rune, 0, 1+len(totalLine)/cols)
 		if len(totalLine) == 0 {
 			linePieces = [][]rune{{}}

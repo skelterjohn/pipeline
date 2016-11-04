@@ -86,6 +86,14 @@ func TestGetBufferLinesToShow(t *testing.T) {
 				"show",
 			},
 		},
+		{
+			"\tone tab\nk\ttwo tab\n",
+			[]string{
+				"    one tab",
+				"k   two tab",
+				"",
+			},
+		},
 	} {
 		if err := compareRunePage(getBufferLinesToShow(3, 20, 0, tc.in),
 			tc.outs); err != nil {
