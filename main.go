@@ -98,14 +98,15 @@ func (p *pipeline) processPipeline(line string) error {
 	return err
 }
 
-func (p *pipeline) renderBuffer(b *bytes.Buffer, skipUpper, skipLower int, fg, bg termbox.Attribute) {
+func (p *pipeline) renderBuffer(b *bytes.Buffer, skipUpper, skipLower, fromEnd int, fg, bg termbox.Attribute) int {
 	cols, rows := termbox.Size()
-	lines := getBufferLinesToShow(rows-skipUpper-skipLower, cols, 0, b.String())
+	lines, n := getBufferLinesToShow(rows-skipUpper-skipLower, cols, fromEnd, b.String())
 	for y, row := range lines {
 		for x, c := range row {
 			termbox.SetCell(x, y+skipUpper, c, fg, bg)
 		}
 	}
+	return n
 }
 
 func (p *pipeline) renderLine(line string, cursor int, fg, bg termbox.Attribute) {
@@ -123,7 +124,7 @@ func (p *pipeline) renderLine(line string, cursor int, fg, bg termbox.Attribute)
 	termbox.SetCursor(2+cursor, 0)
 }
 
-func getBufferLinesToShow(rows, cols, skipFromEnd int, data string) [][]rune {
+func getBufferLinesToShow(rows, cols, skipFromEnd int, data string) ([][]rune, int) {
 	// turn into []rune so that we account for width correctly. it's also what termbox wants.
 	rs := []rune(data)
 	linesInReverse := [][]rune{}
@@ -197,30 +198,37 @@ func getBufferLinesToShow(rows, cols, skipFromEnd int, data string) [][]rune {
 	for _, l := range linesInReverse {
 		log.Printf("r> %s", string(l))
 	}
+	if rows+skipFromEnd > len(linesInReverse) {
+		skipFromEnd = len(linesInReverse) - rows
+		if skipFromEnd < 0 {
+			skipFromEnd = 0
+		}
+	}
+	log.Printf("len=%d, skip=%d", len(linesInReverse), skipFromEnd)
 	for i := 0; i < len(linesInReverse)-skipFromEnd; i++ {
 		lines = append(lines, linesInReverse[len(linesInReverse)-i-1])
 	}
 
-	return lines
+	return lines, skipFromEnd
 }
 
-func (p *pipeline) render(line string, cursor int, processError bool) error {
+func (p *pipeline) render(line string, cursor, fromEnd int, processError bool) (error, int) {
 	_, rows := termbox.Size()
 	if err := termbox.Clear(termbox.ColorDefault, termbox.ColorDefault); err != nil {
-		return err
+		return err, fromEnd
 	}
 	outFg := termbox.ColorDefault
 	if processError {
 		outFg = termbox.ColorYellow
 	}
-	p.renderBuffer(p.showbuf, 1, 2, outFg, termbox.ColorDefault)
+	n := p.renderBuffer(p.showbuf, 1, 2, fromEnd, outFg, termbox.ColorDefault)
 	lineFg, lineBg := termbox.ColorWhite, termbox.ColorBlack
 	if processError {
-		p.renderBuffer(p.errbuf, rows-2, 0, termbox.ColorRed, termbox.ColorBlack)
+		p.renderBuffer(p.errbuf, rows-2, 0, 0, termbox.ColorRed, termbox.ColorBlack)
 		lineFg = termbox.ColorRed
 	}
 	p.renderLine(line, cursor, lineFg, lineBg)
-	return termbox.Flush()
+	return termbox.Flush(), n
 }
 
 func main() {
@@ -245,6 +253,7 @@ func main() {
 	cursorCh := make(chan int)
 	redrawCh := make(chan bool)
 	errorCh := make(chan bool)
+	scrollCh := make(chan int)
 
 	p := pipeline{
 		inbuf:   &buffer{buffersize: *buffersize},
@@ -276,6 +285,7 @@ func main() {
 		var line string
 		var cursor int
 		var redraw, processError bool
+		var fromEnd int
 
 		t := time.NewTicker(10 * time.Millisecond)
 		defer t.Stop()
@@ -295,8 +305,10 @@ func main() {
 				}
 
 				if redraw {
-					if err := p.render(line, cursor, processError); err != nil {
+					if err, n := p.render(line, cursor, fromEnd, processError); err != nil {
 						log.Fatalf("Could not write to screen: %v", err)
+					} else {
+						fromEnd = n
 					}
 					redraw = false
 				}
@@ -308,6 +320,11 @@ func main() {
 				log.Print("Quitting")
 				errorCh <- processError
 				return
+			case delta := <-scrollCh:
+				fromEnd += delta
+				if fromEnd < 0 {
+					fromEnd = 0
+				}
 			}
 		}
 	}()
@@ -341,6 +358,16 @@ loop:
 			if cursor < len(lineBuffer) {
 				cursor++
 			}
+		case termbox.KeyArrowDown:
+			scrollCh <- -1
+		case termbox.KeyArrowUp:
+			scrollCh <- 1
+		case termbox.KeyPgdn:
+			_, rows := termbox.Size()
+			scrollCh <- -rows + 4
+		case termbox.KeyPgup:
+			_, rows := termbox.Size()
+			scrollCh <- rows - 4
 		case termbox.KeyCtrlA:
 			cursor = 0
 		case termbox.KeyCtrlK:

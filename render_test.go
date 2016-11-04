@@ -95,8 +95,8 @@ func TestGetBufferLinesToShow(t *testing.T) {
 			},
 		},
 	} {
-		if err := compareRunePage(getBufferLinesToShow(3, 20, 0, tc.in),
-			tc.outs); err != nil {
+		rs, _ := getBufferLinesToShow(3, 20, 0, tc.in)
+		if err := compareRunePage(rs, tc.outs); err != nil {
 			t.Errorf("Case %d: %v", i, err)
 		}
 	}
@@ -117,8 +117,8 @@ func TestGetBufferLinesToShowScroll(t *testing.T) {
 			},
 		},
 	} {
-		if err := compareRunePage(getBufferLinesToShow(3, 20, 2, tc.in),
-			tc.outs); err != nil {
+		rs, _ := getBufferLinesToShow(3, 20, 2, tc.in)
+		if err := compareRunePage(rs, tc.outs); err != nil {
 			t.Errorf("Case %d: %v", i, err)
 		}
 	}
