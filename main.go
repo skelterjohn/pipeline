@@ -12,7 +12,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/nsf/termbox-go"
 )
@@ -98,35 +97,11 @@ func (p *pipeline) processPipeline(line string) error {
 }
 
 func (p *pipeline) renderBuffer(b *bytes.Buffer, skipUpper, skipLower int, fg, bg termbox.Attribute) {
-	cols, _ := termbox.Size()
-	data := b.String()
-	for row := skipUpper; row <= cols-skipLower; {
-		if len(data) == 0 {
-			break
-		}
-		if data[0] == '\n' {
-			row++
-			data = data[1:]
-			continue
-		}
-		newlineIndex := strings.Index(data, "\n")
-		if newlineIndex == -1 {
-			newlineIndex = len(data)
-		}
-		if newlineIndex > cols {
-			newlineIndex = cols
-		}
-		line := data[:newlineIndex]
-		taken := 0
-		if len(line) != 0 {
-			for i, c := range line {
-				if i >= cols {
-					break
-				}
-				taken += utf8.RuneLen(c)
-				termbox.SetCell(i, row, c, fg, bg)
-			}
-			data = data[taken:]
+	cols, rows := termbox.Size()
+	lines := getBufferLinesToShow(rows-skipUpper-skipLower, cols, 0, b.String())
+	for y, row := range lines {
+		for x, c := range row {
+			termbox.SetCell(x, y+skipUpper, c, fg, bg)
 		}
 	}
 }
@@ -144,6 +119,59 @@ func (p *pipeline) renderLine(line string, cursor int, fg, bg termbox.Attribute)
 		termbox.SetCell(i, 0, ' ', fg, bg)
 	}
 	termbox.SetCursor(2+cursor, 0)
+}
+
+func getBufferLinesToShow(rows, cols, skipFromEnd int, data string) [][]rune {
+	// turn into []rune so that we account for width correctly. it's also what termbox wants.
+	rs := []rune(data)
+	lines := make([][]rune, rows)
+
+	for rows > 0 && len(rs) > 0 {
+		log.Printf("row %d\n", rows)
+		log.Printf("rs=%q", string(rs))
+		// find the last '\n', or verify that there isn't one in cols runes
+		lastNewline := -1
+		for i := len(rs) - 1; i >= 0 && i > len(rs)-cols; i-- {
+			if rs[i] == '\n' {
+				lastNewline = i
+				break
+			}
+		}
+
+		// break out this line into several max-width pieces
+		var totalLine []rune
+		if lastNewline == -1 {
+			totalLine = rs
+		} else {
+			totalLine = rs[lastNewline+1:]
+		}
+		log.Printf("totalLine=%q", string(totalLine))
+		linePieces := [][]rune{}
+		if len(totalLine) == 0 {
+			linePieces = [][]rune{{}}
+		} else {
+			for len(totalLine) > cols {
+				linePieces = append(linePieces, totalLine[:cols])
+				log.Printf("%q added", string(totalLine[:cols]))
+				totalLine = totalLine[cols:]
+			}
+			if len(totalLine) > 0 {
+				linePieces = append(linePieces, totalLine)
+				log.Printf("%q added last", string(totalLine))
+			}
+		}
+		if lastNewline != -1 {
+			rs = rs[:lastNewline]
+		} else {
+			rs = rs[:0]
+		}
+
+		for i, l := range linePieces {
+			lines[rows-len(linePieces)+i] = l
+		}
+		rows -= len(linePieces)
+	}
+	return lines[rows:]
 }
 
 func (p *pipeline) render(line string, cursor int, processError bool) error {
@@ -203,6 +231,9 @@ func main() {
 	defer func() {
 		termbox.Sync()
 		termbox.Close()
+		if e := recover(); e != nil {
+			log.Printf("recover: %v", e)
+		}
 		if gracefulExit && !<-errorCh {
 			io.Copy(os.Stdout, p.outbuf)
 		} else {
@@ -257,6 +288,7 @@ func main() {
 loop:
 	for {
 		e := termbox.PollEvent()
+		log.Printf("%#v", e)
 		switch e.Key {
 		case termbox.KeyEnter:
 			gracefulExit = true
@@ -279,6 +311,10 @@ loop:
 			if cursor < len(lineBuffer) {
 				cursor++
 			}
+		case termbox.KeyCtrlA:
+			cursor = 0
+		case termbox.KeyCtrlK:
+			lineBuffer = lineBuffer[:cursor]
 		case 0:
 			lineBuffer = lineBuffer[:cursor] + string(e.Ch) + lineBuffer[cursor:]
 			cursor++
@@ -288,7 +324,6 @@ loop:
 		}
 		lineCh <- lineBuffer
 		cursorCh <- cursor
-		log.Printf("%#v", e)
 	}
 	close(quit)
 }
