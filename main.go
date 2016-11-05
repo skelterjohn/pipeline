@@ -326,8 +326,8 @@ loop:
 	for {
 		re := termbox.PollRawEvent(ebytes)
 		log.Printf("re: %#v", re)
-		log.Printf("data: %v %s", ebytes, string(ebytes[1:re.N]))
-
+		escKeyStr := string(ebytes[1:re.N])
+		log.Printf("data: %q %v %d", escKeyStr, ebytes[:re.N], len(escKeyStr))
 		// If you want to make pipeline cross-platform, here's where you
 		// tell it how to recognize special key chords.
 		var (
@@ -339,9 +339,12 @@ loop:
 		e := termbox.ParseEvent(ebytes)
 		log.Printf("e: %#v", e)
 
+		if e.Key != termbox.KeyEsc && re.N == 1 && ebytes[0] == 27 {
+			break loop
+		}
+
 		if e.Key == termbox.KeyEsc {
-			escKey := ebytes[1:re.N]
-			switch string(escKey) {
+			switch escKeyStr {
 			case escEscape:
 				break loop
 			case escCtrlLeftArrow:
