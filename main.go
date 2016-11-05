@@ -148,12 +148,7 @@ func getBufferLinesToShow(rows, cols, skipFromEnd int, data string) ([][]rune, i
 		}
 
 		// break out this line into several max-width pieces
-		var totalLine []rune
-		if lastNewline == -1 {
-			totalLine = rs
-		} else {
-			totalLine = rs[lastNewline+1:]
-		}
+		totalLine := rs[lastNewline+1:]
 		// log.Printf("totalLine=%q", string(totalLine))
 
 		// expand tabs
