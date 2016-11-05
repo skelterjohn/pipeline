@@ -12,7 +12,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
+	//"github.com/gdamore/tcell/termbox"
 	"github.com/nsf/termbox-go"
 )
 
@@ -88,7 +90,6 @@ func (p *pipeline) processPipeline(line string) error {
 	cmd.Stdout = p.outbuf
 	cmd.Stderr = p.errbuf
 	cmd.Stdin = strings.NewReader(p.inbuf.String())
-	log.Printf("pipeline input: %q", p.inbuf.String())
 	err := cmd.Run()
 	log.Printf("%q: %v", line, err)
 	if err == nil {
@@ -136,7 +137,6 @@ func getBufferLinesToShow(rows, cols, skipFromEnd int, data string) ([][]rune, i
 
 	linesToRender--
 	for linesToRender >= 0 && len(rs) > 0 {
-		log.Printf("line %d\n", linesToRender)
 		// log.Printf("rs=%q", string(rs))
 		// find the last '\n', or verify that there isn't one in cols runes
 		lastNewline := -1
@@ -155,9 +155,7 @@ func getBufferLinesToShow(rows, cols, skipFromEnd int, data string) ([][]rune, i
 		expandedLine := make([]rune, 0, 2*len(totalLine))
 		for _, c := range totalLine {
 			if c == '\t' {
-				log.Printf("found a tab at %d", len(expandedLine))
 				spacesRemaining := TabWidth - len(expandedLine)%TabWidth
-				log.Printf("adding %d spaces", spacesRemaining)
 				for j := 0; j < spacesRemaining; j++ {
 					expandedLine = append(expandedLine, ' ')
 				}
@@ -176,12 +174,10 @@ func getBufferLinesToShow(rows, cols, skipFromEnd int, data string) ([][]rune, i
 		} else {
 			for len(totalLine) > cols {
 				linePieces = append([][]rune{totalLine[:cols]}, linePieces...)
-				log.Printf("%q added", string(totalLine[:cols]))
 				totalLine = totalLine[cols:]
 			}
 			if len(totalLine) > 0 {
 				linePieces = append([][]rune{totalLine}, linePieces...)
-				log.Printf("%q added last", string(totalLine))
 			}
 		}
 		if lastNewline != -1 {
@@ -190,23 +186,18 @@ func getBufferLinesToShow(rows, cols, skipFromEnd int, data string) ([][]rune, i
 			rs = rs[:0]
 		}
 
-		log.Printf("Line had %d pieces", len(linePieces))
 		for _, l := range linePieces {
 			linesInReverse = append(linesInReverse, l)
 		}
 		linesToRender -= len(linePieces)
 	}
 	lines := [][]rune{}
-	// for _, l := range linesInReverse {
-	// 	log.Printf("r> %s", string(l))
-	// }
 	if rows+skipFromEnd > len(linesInReverse) {
 		skipFromEnd = len(linesInReverse) - rows
 		if skipFromEnd < 0 {
 			skipFromEnd = 0
 		}
 	}
-	log.Printf("len=%d, skip=%d", len(linesInReverse), skipFromEnd)
 	for i := 0; i < len(linesInReverse)-skipFromEnd; i++ {
 		lines = append(lines, linesInReverse[len(linesInReverse)-i-1])
 	}
@@ -216,9 +207,7 @@ func getBufferLinesToShow(rows, cols, skipFromEnd int, data string) ([][]rune, i
 
 func (p *pipeline) render(line string, cursor, fromEnd int, processError bool) (error, int) {
 	_, rows := termbox.Size()
-	if err := termbox.Clear(termbox.ColorDefault, termbox.ColorDefault); err != nil {
-		return err, fromEnd
-	}
+	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 	outFg := termbox.ColorDefault
 	if processError {
 		outFg = termbox.ColorYellow
@@ -274,9 +263,6 @@ func main() {
 	defer func() {
 		termbox.Sync()
 		termbox.Close()
-		if e := recover(); e != nil {
-			log.Printf("recover: %v", e)
-		}
 		if gracefulExit && !<-errorCh {
 			io.Copy(os.Stdout, p.showbuf)
 		} else {
@@ -301,7 +287,6 @@ func main() {
 						log.Printf("pipeline error: %v", err)
 						processError = true
 					} else {
-						log.Printf("outbuf: %q", p.outbuf.String())
 						processError = false
 					}
 					p.inbuf.Clean()
@@ -336,15 +321,61 @@ func main() {
 	// process input
 	lineBuffer := ""
 	cursor := 0
+	ebytes := make([]byte, 16)
 loop:
 	for {
-		e := termbox.PollEvent()
-		log.Printf("%#v", e)
+		re := termbox.PollRawEvent(ebytes)
+		log.Printf("re: %#v", re)
+		log.Printf("data: %v %s", ebytes, string(ebytes[1:re.N]))
+
+		// If you want to make pipeline cross-platform, here's where you
+		// tell it how to recognize special key chords.
+		var (
+			escEscape         = ""
+			escCtrlLeftArrow  = "[1;5D"
+			escCtrlRightArrow = "[1;5C"
+		)
+
+		e := termbox.ParseEvent(ebytes)
+		log.Printf("e: %#v", e)
+
+		if e.Key == termbox.KeyEsc {
+			escKey := ebytes[1:re.N]
+			switch string(escKey) {
+			case escEscape:
+				break loop
+			case escCtrlLeftArrow:
+				if cursor == 0 {
+					continue
+				}
+				i := cursor - 1
+				for i > 0 && unicode.IsSpace(rune(lineBuffer[i])) {
+					i--
+				}
+				for i > 0 && !unicode.IsSpace(rune(lineBuffer[i])) {
+					i--
+				}
+				cursor = i
+			case escCtrlRightArrow:
+				if cursor == len(lineBuffer) {
+					continue
+				}
+				i := cursor
+				for i < len(lineBuffer) && unicode.IsSpace(rune(lineBuffer[i])) {
+					i++
+				}
+				for i < len(lineBuffer) && !unicode.IsSpace(rune(lineBuffer[i])) {
+					i++
+				}
+				cursor = i
+			}
+		}
+
 		switch e.Key {
 		case termbox.KeyEnter:
 			gracefulExit = true
 			break loop
-		case termbox.KeyEsc, termbox.KeyCtrlC:
+		case termbox.KeyCtrlC:
 			break loop
 		case termbox.KeySpace:
 			lineBuffer = lineBuffer[:cursor] + string(' ') + lineBuffer[cursor:]
