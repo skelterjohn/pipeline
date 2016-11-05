@@ -279,7 +279,7 @@ func main() {
 			log.Printf("recover: %v", e)
 		}
 		if gracefulExit && !<-errorCh {
-			io.Copy(os.Stdout, p.outbuf)
+			io.Copy(os.Stdout, p.showbuf)
 		} else {
 			os.Exit(1)
 		}
