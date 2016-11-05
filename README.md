@@ -8,3 +8,5 @@ piped to the next stage. Or, hit `ctrl-c` or `escape` to cancel and exit 1 with
 no output.
 
 Inspired by, but quite different from, https://github.com/peco/peco.
+
+[![asciicast](https://asciinema.org/a/cmqnr4ou5s6telprgwrj14ld4.png)](https://asciinema.org/a/cmqnr4ou5s6telprgwrj14ld4)
