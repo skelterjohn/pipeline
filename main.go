@@ -137,10 +137,10 @@ func getBufferLinesToShow(rows, cols, skipFromEnd int, data string) ([][]rune, i
 	linesToRender--
 	for linesToRender >= 0 && len(rs) > 0 {
 		log.Printf("line %d\n", linesToRender)
-		log.Printf("rs=%q", string(rs))
+		// log.Printf("rs=%q", string(rs))
 		// find the last '\n', or verify that there isn't one in cols runes
 		lastNewline := -1
-		for i := len(rs) - 1; i >= 0 && i > len(rs)-cols; i-- {
+		for i := len(rs) - 1; i >= 0; i-- {
 			if rs[i] == '\n' {
 				lastNewline = i
 				break
@@ -154,7 +154,7 @@ func getBufferLinesToShow(rows, cols, skipFromEnd int, data string) ([][]rune, i
 		} else {
 			totalLine = rs[lastNewline+1:]
 		}
-		log.Printf("totalLine=%q", string(totalLine))
+		// log.Printf("totalLine=%q", string(totalLine))
 
 		// expand tabs
 		expandedLine := make([]rune, 0, 2*len(totalLine))
@@ -167,6 +167,9 @@ func getBufferLinesToShow(rows, cols, skipFromEnd int, data string) ([][]rune, i
 					expandedLine = append(expandedLine, ' ')
 				}
 			} else {
+				if c == '\n' {
+					log.Printf("Adding a newline for some reason... lastNewline=%d", lastNewline)
+				}
 				expandedLine = append(expandedLine, c)
 			}
 		}
@@ -192,15 +195,16 @@ func getBufferLinesToShow(rows, cols, skipFromEnd int, data string) ([][]rune, i
 			rs = rs[:0]
 		}
 
+		log.Printf("Line had %d pieces", len(linePieces))
 		for _, l := range linePieces {
 			linesInReverse = append(linesInReverse, l)
 		}
 		linesToRender -= len(linePieces)
 	}
 	lines := [][]rune{}
-	for _, l := range linesInReverse {
-		log.Printf("r> %s", string(l))
-	}
+	// for _, l := range linesInReverse {
+	// 	log.Printf("r> %s", string(l))
+	// }
 	if rows+skipFromEnd > len(linesInReverse) {
 		skipFromEnd = len(linesInReverse) - rows
 		if skipFromEnd < 0 {
