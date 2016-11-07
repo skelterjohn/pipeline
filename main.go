@@ -14,6 +14,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -94,9 +95,14 @@ func (p *pipeline) processPipeline(line string) error {
 	p.outbuf.Truncate(0)
 	p.errbuf.Truncate(0)
 	if line == "" {
-		_, err := fmt.Fprint(p.outbuf, p.inbuf.String())
+		fmt.Fprint(p.outbuf, p.inbuf.String())
 		p.outbuf, p.showbuf = p.showbuf, p.outbuf
-		return err
+		fmt.Fprint(p.errbuf, "type your pipeline and terminate with ';'")
+		return errors.New("no pipeline")
+	}
+	if !strings.HasSuffix(line, ";") {
+		fmt.Fprint(p.errbuf, "terminate with ';' to turn on evaluation")
+		return errors.New("no semicolon")
 	}
 	cmd := exec.Command(*shell, "-c", line)
 	cmd.Stdout = p.outbuf
@@ -224,13 +230,13 @@ func (p *pipeline) render(line string, cursor, fromEnd int, processError bool) (
 	if processError {
 		outFg = termbox.ColorYellow
 	}
-	n := p.renderBuffer(p.showbuf, 1, 2, fromEnd, outFg, termbox.ColorDefault)
+	n := p.renderBuffer(p.showbuf, 1, 1, fromEnd, outFg, termbox.ColorDefault)
 	lineFg, lineBg := termbox.ColorWhite, termbox.ColorBlack
 	if processError {
-		p.renderBuffer(p.errbuf, rows-2, 0, 0, termbox.ColorRed, termbox.ColorBlack)
+		p.renderBuffer(p.errbuf, rows-1, 0, 0, termbox.ColorRed, termbox.ColorBlack)
 		lineFg = termbox.ColorRed
 	} else {
-		p.renderBuffer(bytes.NewBufferString("\n\n\n"), rows-2, 0, 0, termbox.ColorRed, termbox.ColorBlack)
+		p.renderBuffer(bytes.NewBufferString("\n\n\n"), rows-1, 0, 0, termbox.ColorRed, termbox.ColorBlack)
 	}
 	p.renderLine(line, cursor, lineFg, lineBg)
 	return termbox.Flush(), n
