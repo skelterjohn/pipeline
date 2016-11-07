@@ -14,4 +14,4 @@ a command was `rm...`).
 Inspired by, but quite different from, https://github.com/peco/peco.
 
 ## Fancy video
-[![asciicast](https://asciinema.org/a/cmqnr4ou5s6telprgwrj14ld4.png)](https://asciinema.org/a/cmqnr4ou5s6telprgwrj14ld4)
+[![asciicast](https://asciinema.org/a/c3vhg4raaw8xet3j13wjwx3wz.png)](https://asciinema.org/a/c3vhg4raaw8xet3j13wjwx3wz)
